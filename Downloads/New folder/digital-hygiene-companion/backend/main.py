@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
 import hashlib
+from fastapi import Header
 
+from auth import validate_api_key, check_rate_limit
 from detectors.phishing_detector import PhishingDetector
 from detectors.url_analyzer import URLAnalyzer
 from detectors.social_engineering_detector import SocialEngineeringDetector
@@ -98,17 +100,22 @@ async def health_check():
 
 
 @app.post("/api/analyze/text", response_model=RiskAnalysisResponse)
-async def analyze_text(request: TextAnalysisRequest):
+async def analyze_text(
+    request: TextAnalysisRequest,
+    authorization: Optional[str] = Header(None),
+    api_key: Optional[str] = Header(None)
+):
     """
     Analyze text content for phishing, social engineering, and credential theft risks.
     All processing happens locally on this device.
+    Optional: Include 'Authorization: Bearer <api_key>' or 'api-key: <key>' header for authentication.
     """
     try:
-        # Require explicit user consent flag if provided via header or env in future
-        # For now, ensure caller included a 'consent' query/header/value - simple enforcement
-        # Expect clients to include 'consent': true in request body for this demo
-        # NOTE: Frontend will present a consent prompt prior to calling this endpoint.
-        pass
+        # Validate API key (optional if not configured)
+        key = validate_api_key(authorization, api_key)
+        # Check rate limit
+        check_rate_limit(key)
+
         detected_risks = []
         risk_scores = {}
 
@@ -173,12 +180,22 @@ async def analyze_text(request: TextAnalysisRequest):
 
 
 @app.post("/api/analyze/url", response_model=RiskAnalysisResponse)
-async def analyze_url(request: URLAnalysisRequest):
+async def analyze_url(
+    request: URLAnalysisRequest,
+    authorization: Optional[str] = Header(None),
+    api_key: Optional[str] = Header(None)
+):
     """
     Analyze URL for suspicious characteristics, phishing, and malware indicators.
     All processing happens locally on this device.
+    Optional: Include 'Authorization: Bearer <api_key>' or 'api-key: <key>' header for authentication.
     """
     try:
+        # Validate API key (optional if not configured)
+        key = validate_api_key(authorization, api_key)
+        # Check rate limit
+        check_rate_limit(key)
+
         detected_risks = []
         risk_scores = {}
 
@@ -278,12 +295,22 @@ async def analyze_combined(text_request: TextAnalysisRequest, url_request: URLAn
 
 
 @app.post("/api/analyze/qr", response_model=RiskAnalysisResponse)
-async def analyze_qr(payload: Dict[str, Any]):
+async def analyze_qr(
+    payload: Dict[str, Any],
+    authorization: Optional[str] = Header(None),
+    api_key: Optional[str] = Header(None)
+):
     """
     Analyze QR content. Expects JSON: { "qr_data": "<text or url>", "context": "email|chat|web|unknown" }
     For this MVP we accept the QR data as text (often a URL) and analyze the contained link.
+    Optional: Include 'Authorization: Bearer <api_key>' or 'api-key: <key>' header for authentication.
     """
     try:
+        # Validate API key (optional if not configured)
+        key = validate_api_key(authorization, api_key)
+        # Check rate limit
+        check_rate_limit(key)
+
         qr_data = payload.get("qr_data") if isinstance(payload, dict) else None
         context = payload.get("context", "unknown") if isinstance(payload, dict) else "unknown"
 
